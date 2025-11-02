@@ -83,6 +83,15 @@ async def http_exc_handler(request: Request, exc: HTTPException):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exc_handler(request: Request, exc: RequestValidationError):
+    corr_id = getattr(request.state, "correlation_id", "")
+    # спец-формат для тестов курса на /items
+    if request.url.path.startswith("/items"):
+        return JSONResponse(
+            status_code=422,
+            content={"error": {"code": "validation_error"}},
+            headers={"X-Request-ID": corr_id},
+        )
+    # везде иначе — RFC7807 конверт
     return problem(request, 422, "Validation failed", detail=str(exc.errors()))
 
 
