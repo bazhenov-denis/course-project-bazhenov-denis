@@ -1,53 +1,28 @@
-# SecDev Course Template
 
-Стартовый шаблон для студенческого репозитория (HSE SecDev 2025).
+# Minimal Notes API (security-flavored demo)
 
-## Быстрый старт
+Быстрый минимальный сервис на FastAPI, покрывающий базовые NFR из курса:
+единый конверт ошибок (Problem Details) с correlation-id, пагинация, ограничение `limit`,
+структурные логи без PII, простые тесты.
+
+## Запуск
+
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\Activate.ps1
-pip install -r requirements.txt -r requirements-dev.txt
-pre-commit install
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-## Ритуал перед PR
-```bash
-ruff --fix .
-black .
-isort .
-pytest -q
-pre-commit run --all-files
-```
+Откройте: http://127.0.0.1:8000/ping
 
 ## Тесты
+
 ```bash
 pytest -q
 ```
 
-## CI
-В репозитории настроен workflow **CI** (GitHub Actions) — required check для `main`.
-Badge добавится автоматически после загрузки шаблона в GitHub.
+## Полезные маршруты
+- `POST /notes` — создать заметку (`title`, `body`, `tags[]`)
+- `GET /notes?limit=10&offset=0` — список с пагинацией (без поля `body` в ответе)
 
-## Контейнеры
-```bash
-docker build -t secdev-app .
-docker run --rm -p 8000:8000 secdev-app
-# или
-docker compose up --build
-```
-
-## Эндпойнты
-- `GET /health` → `{"status": "ok"}`
-- `POST /items?name=...` — демо-сущность
-- `GET /items/{id}`
-
-## Формат ошибок
-Все ошибки — JSON-обёртка:
-```json
-{
-  "error": {"code": "not_found", "message": "item not found"}
-}
-```
-
-См. также: `SECURITY.md`, `.pre-commit-config.yaml`, `.github/workflows/ci.yml`.
+В каждом ответе заголовок `X-Request-ID`. Ошибки — в формате `application/problem+json`.
