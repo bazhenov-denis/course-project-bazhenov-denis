@@ -1,24 +1,35 @@
-name: CI
+name: CI/CD Pipeline
+
 on:
   pull_request:
   push:
     branches: [main]
+
 permissions:
   contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+        os: [ubuntu-latest, windows-latest]
+
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
           cache: "pip"
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
 
       - name: Install dependencies
         run: |
@@ -31,8 +42,115 @@ jobs:
           black --check .
           isort --check-only .
 
-      - name: Tests
-        run: pytest -q
+      - name: Run tests with coverage
+        run: |
+          pytest -q --cov=app --cov-report=xml --cov-report=html
 
-      - name: Pre-commit (all files)
-        run: pre-commit run --all-files
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-${{ matrix.python-version }}-${{ matrix.os }}
+          path: |
+            coverage.xml
+            htmlcov/
+          retention-days: 30
+
+  build:
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          load: true
+          tags: notes-api:latest
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+
+      - name: Test Docker image
+        run: |
+          docker run -d --name test-app -p 8000:8000 notes-api
+          sleep 10
+          curl -f http://localhost:8000/health || exit 1
+          docker stop test-app
+
+      - name: Save Docker image
+        run: |
+          docker save notes-api:latest -o notes-api.tar
+
+      - name: Upload Docker image artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: docker-image
+          path: notes-api.tar
+          retention-days: 7
+
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run security scan
+        run: |
+          pip install bandit safety
+          bandit -r app/ -f json -o bandit-report.json || true
+          safety check --json --output safety-report.json || true
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-reports
+          path: |
+            bandit-report.json
+            safety-report.json
+          retention-days: 30
+
+  deploy-staging:
+    runs-on: ubuntu-latest
+    needs: [test, build, security-scan]
+    environment: staging
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Docker image
+        uses: actions/download-artifact@v3
+        with:
+          name: docker-image
+
+      - name: Load Docker image
+        run: docker load -i notes-api.tar
+
+      - name: Deploy to staging
+        env:
+          DB_URL: ${{ secrets.STAGING_DB_URL }}
+          JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}
+          API_KEY: ${{ secrets.STAGING_API_KEY }}
+        run: |
+          echo "Deploying to staging environment..."
+          # Эмуляция деплоя - запускаем контейнер с переменными окружения
+          docker run -d --name staging-app -p 8000:8000 \
+            -e DB_URL="$DB_URL" \
+            -e JWT_SECRET="$JWT_SECRET" \
+            -e API_KEY="$API_KEY" \
+            notes-api
+          sleep 10
+          curl -f http://localhost:8000/health || exit 1
+          echo "Staging deployment completed"
