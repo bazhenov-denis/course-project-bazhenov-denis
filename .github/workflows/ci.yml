@@ -47,7 +47,7 @@ jobs:
           pytest -q --cov=app --cov-report=xml --cov-report=html
 
       - name: Upload coverage reports
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: coverage-${{ matrix.python-version }}-${{ matrix.os }}
           path: |
@@ -63,10 +63,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
 
       - name: Cache Docker layers
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: /tmp/.buildx-cache
           key: ${{ runner.os }}-buildx-${{ github.sha }}
@@ -74,7 +74,7 @@ jobs:
             ${{ runner.os }}-buildx-
 
       - name: Build Docker image
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v5
         with:
           context: .
           load: true
@@ -94,7 +94,7 @@ jobs:
           docker save notes-api:latest -o notes-api.tar
 
       - name: Upload Docker image artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: docker-image
           path: notes-api.tar
@@ -114,7 +114,7 @@ jobs:
           safety check --json --output safety-report.json || true
 
       - name: Upload security reports
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: security-reports
           path: |
@@ -131,9 +131,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Download Docker image
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: docker-image
+          path: ./
 
       - name: Load Docker image
         run: docker load -i notes-api.tar
@@ -154,3 +155,4 @@ jobs:
           sleep 10
           curl -f http://localhost:8000/health || exit 1
           echo "Staging deployment completed"
+          docker stop staging-app
