@@ -1,0 +1,13 @@
+title = "Project Gitleaks Config"
+
+[allowlist]
+description = "Allow test tokens and examples"
+regexes = [
+  '''TEST_TOKEN_[A-Z0-9]+'''
+]
+
+[[rules]]
+id = "generic-api-key"
+description = "Generic API Key"
+regex = '''(?i)(api[_-]?key|token)[\s:=]+['"]?[a-z0-9]{16,}'''
+tags = ["key", "token"]

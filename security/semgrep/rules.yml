@@ -1,0 +1,13 @@
+rules:
+  - id: fastapi-debug-true
+    patterns:
+      - pattern: FastAPI(..., debug=True)
+    message: "FastAPI debug=True should not be used in production"
+    severity: WARNING
+    languages: [python]
+
+  - id: logging-sensitive-data
+    pattern: logger.info($DATA)
+    message: "Potential logging of sensitive data"
+    severity: INFO
+    languages: [python]
