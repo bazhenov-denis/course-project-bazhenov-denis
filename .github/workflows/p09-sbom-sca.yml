@@ -29,7 +29,6 @@ env:
   SCA_FILE: ${{env.EVIDENCE_DIR}}/sca_report.json
   SUMMARY_FILE: ${{env.EVIDENCE_DIR}}/sca_summary.md
   COMMIT_SBOM: "false"
-
 jobs:
   build-sbom-and-sca:
     runs-on: ubuntu-latest
