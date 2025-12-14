@@ -1,0 +1,12 @@
+# policy/waivers.yml
+# Простая структура waiver'ов — можно расширять полями owner, risk, justification, expires
+waivers:
+  - id: "WAIVER-0001"
+    created: "2025-12-04"
+    package: "urllib3"          # пример
+    version: "1.26.16"
+    reason: "False positive in test environment; обновление приведёт к несовместимости с internal adapter"
+    owner: "backend-team"
+    expires: "2026-01-04"
+    mitigation: "Развернутое покрытие тестами; в следующем релизе план обновления зависимости"
+    status: "active"
