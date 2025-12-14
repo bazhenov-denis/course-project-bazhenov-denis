@@ -1,0 +1,79 @@
+---
+name: P11 — DAST (OWASP ZAP Baseline)
+
+on:
+  push:
+    paths:
+      - "app/**"
+      - "Dockerfile"
+      - ".github/workflows/p11-dast-zap.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p11-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create evidence dir
+        run: mkdir -p EVIDENCE/P11
+
+      # ---------------------------
+      # Run application (realistic)
+      # ---------------------------
+      - name: Build Docker image
+        run: docker build -t notes-api:dast .
+
+      - name: Run application
+        run: |
+          docker run -d --name dast-app \
+            -p 8000:8000 \
+            notes-api:dast
+
+      - name: Wait for health check
+        run: |
+          for i in {1..20}; do
+            if curl -fs http://localhost:8000/health; then
+              echo "Service is ready"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "Service did not start in time"
+          docker logs dast-app
+          exit 1
+
+      # ---------------------------
+      # OWASP ZAP Baseline
+      # ---------------------------
+      - name: Run ZAP Baseline Scan
+        run: |
+          docker run --rm \
+            --network host \
+            -v $(pwd)/EVIDENCE/P11:/zap/wrk \
+            owasp/zap2docker-stable \
+            zap-baseline.py \
+              -t http://localhost:8000 \
+              -r zap_baseline.html \
+              -J zap_baseline.json \
+              -m 5 || true
+
+      - name: Stop application
+        if: always()
+        run: docker stop dast-app
+
+      - name: Upload P11 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: p11-dast-reports
+          path: EVIDENCE/P11/
+          retention-days: 30
