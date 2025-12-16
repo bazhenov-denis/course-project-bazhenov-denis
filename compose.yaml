@@ -1,8 +1,52 @@
+version: "3.9"
+
 services:
   app:
-    build: .
+    image: myapp:prod
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: myapp
+    restart: unless-stopped
     ports:
       - "8000:8000"
     environment:
-      - PYTHONUNBUFFERED=1
-    profiles: ["dev"]
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/mydb
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - db
+      - redis
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+
+  db:
+    image: postgres:15
+    container_name: mydb
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: mydb
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+
+  redis:
+    image: redis:8
+    container_name: myredis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  db_data:
+  redis_data:
