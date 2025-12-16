@@ -1,0 +1,57 @@
+name: P12 - IaC & Container Security
+
+on:
+  push:
+    paths:
+      - 'Dockerfile'
+      - 'iac/**'
+      - 'security/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  p12-iac:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create EVIDENCE dir
+        run: mkdir -p EVIDENCE/P12
+
+      # -------------------------
+      # Hadolint
+      - name: Hadolint Dockerfile
+        run: |
+          docker run --rm -i hadolint/hadolint:latest hadolint Dockerfile \
+            -f json > EVIDENCE/P12/hadolint_report.json || true
+
+      # -------------------------
+      # Checkov
+      - name: Checkov IaC
+        run: |
+          pip install checkov
+          checkov -d ./iac --config-file security/checkov.yaml \
+            -o json > EVIDENCE/P12/checkov_report.json || true
+
+      # -------------------------
+      # Trivy
+      - name: Build Docker image
+        run: docker build -t my-app:latest .
+
+      - name: Trivy scan image
+        run: |
+          pip install trivy
+          trivy image --format json --output EVIDENCE/P12/trivy_report.json my-app:latest || true
+
+      # -------------------------
+      # Upload artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p12-security-reports
+          path: EVIDENCE/P12/
+          retention-days: 30
